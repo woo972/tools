@@ -12,3 +12,4 @@ node_modules/
 # 다이어그램 렌더 산출물
 *.svg
 *.png
+.gstack/

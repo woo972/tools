@@ -1,0 +1,38 @@
+# 에이전트 화이트리스트.
+#
+# 기본 정책은 deny다. 이 파일이 없으면 에이전트는 아무 값도 조회할 수 없다 —
+# 설정을 깜빡한 상태가 곧 안전한 상태가 되게 한 것이다.
+#
+# 판정 순서: 민감도 → key. 실효 visibility가 secret인 항목은 allow에 적혀 있어도
+# allow_secret을 켜지 않으면 거부된다. 참조를 통해 secret이 섞여 들어온 항목
+# (예: ORDER_DB_URL → DB_PASSWORD)도 같은 취급을 받는다.
+#
+# `*` 규칙은 모든 에이전트에 적용되는 기준선이고, id가 일치하는 규칙이 그 위에 더해진다
+# (allow는 합집합, 불린은 OR). 그래서 `*`에 allow_secret을 켜면 전원에게 열린다.
+#
+# 소유자(UI/CLI)는 이 화이트리스트를 거치지 않는다. UI는 본인이 원본 평문을 확인하는
+# 창구이므로 정책을 걸면 요구사항 자체가 무너진다.
+
+agents:
+  # 모든 에이전트의 기준선 — 아무것도 주지 않는다.
+  - id: "*"
+    allow: []
+    allow_secret: false
+    alias_write: false
+
+  # Claude Code: 공개값과 토픽명은 자유롭게, 용어집 추가도 허용.
+  # 값이 필요 없는 작업이 대부분이므로 secret은 닫아 둔다.
+  - id: "claude-code"
+    allow:
+      - "*_TOPIC"
+      - "*_HOST"
+      - "*_ENDPOINT"
+    allow_secret: false
+    alias_write: true
+
+  # Codex: 조회만. 용어집은 건드리지 않는다.
+  - id: "codex"
+    allow:
+      - "*_TOPIC"
+    allow_secret: false
+    alias_write: false

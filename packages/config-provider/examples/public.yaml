@@ -1,0 +1,40 @@
+# public.yaml — 공개 가능한 설정값 (평문, git 그대로 커밋)
+# 값 자체가 민감하면 secret.yaml로 옮기세요. key는 두 파일 전체에서 유일해야 합니다.
+# 이 파일은 dkc가 다시 쓸 수 있습니다. 주석은 이 헤더만 보존됩니다.
+items:
+  - key: "ORDER_SERVICE_HOST"
+    resource_type: "endpoint"
+    alias: ["주문 서비스", "order service"]
+    value:
+      prod: "order-svc.internal.example.com"
+      dev: "order-svc.dev.internal.example.com"
+    desc: "주문 서비스 내부 호스트"
+    ref: "https://wiki.internal/order-service"
+
+  - key: "INBOUND_INSTRUCTION_TOPIC"
+    resource_type: "kafka_topic"
+    alias: ["입고지시", "입고 지시", "inbound instruction"]
+    value:
+      prod: "moms.inbound.instruction.v1"
+      dev: "moms.inbound.instruction.v1.dev"
+    desc: "입고 지시 이벤트 발행 토픽. Consumer는 WMS 연동 서비스"
+    ref: "https://wiki.internal/inbound-instruction"
+
+  # 참조 문법 — DB_PASSWORD(secret)를 참조하므로 실효 visibility가 secret으로 올라간다.
+  # resolve_alias 결과에 값이 실리지 않고, get_value는 화이트리스트 대상이 된다.
+  - key: "ORDER_DB_URL"
+    resource_type: "endpoint"
+    alias: ["주문 DB 접속 문자열"]
+    value:
+      prod: "postgres://orders:{{DB_PASSWORD}}@{{ORDER_SERVICE_HOST}}:5432/orders"
+      dev: "postgres://orders:{{DB_PASSWORD}}@{{ORDER_SERVICE_HOST}}:5432/orders"
+    desc: "주문 DB 접속 문자열. 호스트/비밀번호는 참조로 조합"
+
+  # 미설정 값 — 정의는 있으나 prod 값이 아직 없다. 조회하면 404가 아니라 status: "unset"이다.
+  - key: "NEW_SERVICE_ENDPOINT"
+    resource_type: "endpoint"
+    alias: ["신규 서비스 엔드포인트"]
+    value:
+      prod: null
+      dev: "new-svc.dev.internal.example.com"
+    desc: "신규 서비스. prod는 배포 후 확정 예정"

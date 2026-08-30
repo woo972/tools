@@ -1,0 +1,22 @@
+# systemd (user) 소켓 — Linux.
+#
+# 소켓 활성화를 쓰면 소켓의 생성·권한·정리를 systemd가 담당한다. 데몬 코드의 stale 처리가
+# 아예 필요 없어지고(daemon.ts는 LISTEN_FDS를 보고 fd 3을 그대로 쓴다), 첫 요청이 올 때
+# 자동 기동되는 이점도 함께 얻는다. 스펙 §4.2가 권장하는 경로다.
+#
+# 설치:
+#   cp packages/config-provider/service/config-provider.{socket,service} ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now config-provider.socket
+
+[Unit]
+Description=Config Provider (개인용 설정 저장소) 소켓
+
+[Socket]
+ListenStream=%t/config-provider/daemon.sock
+SocketMode=0600
+RemoveOnStop=yes
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

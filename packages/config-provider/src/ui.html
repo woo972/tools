@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 값이 브라우저 캐시나 프리뷰에 남지 않게 한다 (스펙 §4.4 노출 경계). -->
+<meta http-equiv="Cache-Control" content="no-store">
+<meta name="referrer" content="no-referrer">
+<title>Config Provider</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --fg:#e6e9ef; --dim:#8b93a5; --acc:#6ea8fe; --warn:#e0a458; --danger:#e06c75; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",sans-serif; }
+  header { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); padding:12px 20px; z-index:10; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  h1 { font-size:15px; margin:0 12px 0 0; font-weight:600; }
+  input,select,button,textarea { font:inherit; color:var(--fg); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
+  input:focus,textarea:focus { outline:1px solid var(--acc); }
+  button { cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  #q { flex:1; min-width:240px; }
+  .badge { font-size:11px; padding:2px 7px; border-radius:999px; border:1px solid var(--line); color:var(--dim); }
+  .badge.secret { color:var(--warn); border-color:#4a3a1e; background:#231b0d; }
+  .badge.public { color:#7fbf7f; border-color:#204020; background:#0f1c0f; }
+  .badge.reduced { color:var(--danger); border-color:#4a1e1e; background:#231010; }
+  .badge.unset { color:var(--dim); border-style:dashed; }
+  main { padding:16px 20px 60px; max-width:1100px; }
+  .item { border:1px solid var(--line); border-radius:8px; margin-bottom:8px; background:var(--panel); }
+  .item.is-unset { border-left:3px solid var(--warn); }
+  .head { display:flex; gap:10px; align-items:center; padding:10px 14px; cursor:pointer; }
+  .key { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:600; }
+  .aliases { color:var(--dim); font-size:12px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .body { border-top:1px solid var(--line); padding:12px 14px; display:none; }
+  .item.open .body { display:block; }
+  .envs { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; }
+  .env { border:1px solid var(--line); border-radius:6px; padding:10px; }
+  .env h3 { margin:0 0 8px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+  .val { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; background:#0c0e12; border:1px solid var(--line); border-radius:4px; padding:8px; min-height:34px; }
+  .val.masked { color:var(--dim); letter-spacing:2px; }
+  .tpl { font-size:12px; color:var(--dim); margin-top:6px; }
+  .tpl code { color:var(--acc); }
+  .actions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .meta { margin-top:12px; display:grid; grid-template-columns:90px 1fr; gap:6px 10px; align-items:center; font-size:13px; }
+  .meta label { color:var(--dim); }
+  .toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--acc); border-radius:6px; padding:8px 14px; display:none; }
+  .toast.err { border-color:var(--danger); }
+  .hint { color:var(--dim); font-size:12px; }
+  .empty { color:var(--dim); padding:40px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>Config Provider</h1>
+    <span id="mode" class="badge">…</span>
+    <input id="q" placeholder="key · alias · 설명으로 검색 (예: 입고지시)">
+    <label class="hint"><input type="checkbox" id="autoclear" checked style="width:auto"> 복사 30초 후 클립보드 비우기</label>
+    <button id="reload">reload</button>
+    <button id="new">+ 항목</button>
+  </div>
+  <div id="warn" class="hint" style="margin-top:6px"></div>
+</header>
+<main id="list"><div class="empty">불러오는 중…</div></main>
+<div id="toast" class="toast"></div>
+
+<script>
+const $ = (s, r) => (r || document).querySelector(s);
+let ITEMS = [];
+let OPEN = new Set();
+
+function toast(msg, isErr) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isErr ? ' err' : '');
+  t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+async function api(path, opts) {
+  const res = await fetch('/api' + path, Object.assign({ headers: { 'content-type': 'application/json' } }, opts || {}));
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body || !body.ok) {
+    const e = (body && body.error) || {};
+    throw new Error((e.message || ('HTTP ' + res.status)) + (e.hint ? ' — ' + e.hint : ''));
+  }
+  return body.data;
+}
+
+async function load() {
+  const st = await api('/status');
+  $('#mode').textContent = st.mode === 'full' ? 'full · ' + st.items + '개' : '축소 모드 · 값 잠김';
+  $('#mode').className = 'badge ' + (st.mode === 'full' ? 'public' : 'reduced');
+  $('#warn').textContent = (st.warnings || []).join(' / ');
+
+  const data = await api('/items?values=true');
+  ITEMS = data.items;
+  render();
+}
+
+function matches(it, q) {
+  if (!q) return true;
+  const n = (s) => (s || '').normalize('NFC').toLowerCase().replace(/[\s_-]+/g, '');
+  const nq = n(q);
+  return n(it.key).includes(nq) || (it.alias || []).some((a) => n(a).includes(nq)) || n(it.desc).includes(nq);
+}
+
+function render() {
+  const q = $('#q').value.trim();
+  const list = $('#list');
+  const shown = ITEMS.filter((it) => matches(it, q));
+  if (!shown.length) { list.innerHTML = '<div class="empty">일치하는 항목이 없습니다.</div>'; return; }
+  list.innerHTML = '';
+  for (const it of shown) list.appendChild(itemEl(it));
+}
+
+function itemEl(it) {
+  const envs = it.envs && it.envs.length ? it.envs : ['prod', 'dev'];
+  const anyUnset = envs.some((e) => !it.values || !it.values[e] || it.values[e].status === 'unset');
+
+  const el = document.createElement('div');
+  el.className = 'item' + (anyUnset ? ' is-unset' : '') + (OPEN.has(it.key) ? ' open' : '');
+  el.innerHTML =
+    '<div class="head">' +
+      '<span class="key"></span>' +
+      '<span class="badge ' + it.visibility + '">' + it.visibility + '</span>' +
+      (it.declaredVisibility !== it.visibility ? '<span class="badge secret" title="참조를 통해 secret이 섞였습니다">참조로 secret</span>' : '') +
+      (it.resourceType ? '<span class="badge rt"></span>' : '') +
+      (anyUnset ? '<span class="badge unset">미설정</span>' : '') +
+      '<span class="aliases"></span>' +
+    '</div><div class="body"></div>';
+
+  $('.key', el).textContent = it.key;
+  if (it.resourceType) $('.head .rt', el).textContent = it.resourceType;
+  $('.aliases', el).textContent = (it.alias || []).join(' · ') + (it.desc ? '  — ' + it.desc : '');
+
+  $('.head', el).onclick = () => {
+    el.classList.toggle('open');
+    if (el.classList.contains('open')) { OPEN.add(it.key); buildBody(el, it, envs); }
+    else OPEN.delete(it.key);
+  };
+  if (OPEN.has(it.key)) buildBody(el, it, envs);
+  return el;
+}
+
+function buildBody(el, it, envs) {
+  const body = $('.body', el);
+  body.innerHTML = '';
+
+  const grid = document.createElement('div');
+  grid.className = 'envs';
+  for (const env of envs) grid.appendChild(envEl(it, env));
+  body.appendChild(grid);
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML =
+    '<label>alias</label><input class="m-alias">' +
+    '<label>설명</label><input class="m-desc">' +
+    '<label>참고 URL</label><input class="m-ref">' +
+    '<label>종류</label><input class="m-type">' +
+    '<label></label><div><button class="m-save">메타 저장</button> <span class="hint">alias는 쉼표로 구분. key와 값은 이 줄로 바뀌지 않습니다.</span></div>';
+  $('.m-alias', meta).value = (it.alias || []).join(', ');
+  $('.m-desc', meta).value = it.desc || '';
+  $('.m-ref', meta).value = it.ref || '';
+  $('.m-type', meta).value = it.resourceType || '';
+  $('.m-save', meta).onclick = async () => {
+    try {
+      await api('/alias/' + encodeURIComponent(it.key), {
+        method: 'PUT',
+        body: JSON.stringify({
+          version: it.version,
+          alias: $('.m-alias', meta).value.split(',').map((s) => s.trim()).filter(Boolean),
+          desc: $('.m-desc', meta).value || null,
+          ref: $('.m-ref', meta).value || null,
+          resource_type: $('.m-type', meta).value || null,
+        }),
+      });
+      toast('저장했습니다');
+      await load();
+    } catch (e) { toast(e.message, true); }
+  };
+  body.appendChild(meta);
+}
+
+function envEl(it, env) {
+  const v = (it.values && it.values[env]) || { value: null, status: 'unset' };
+  const rawTpl = it.rawValues ? it.rawValues[env] : null;
+  const isRef = typeof rawTpl === 'string' && rawTpl.indexOf('{{') >= 0;
+
+  const box = document.createElement('div');
+  box.className = 'env';
+  box.innerHTML =
+    '<h3>' + env + (env === 'prod' ? ' ⚠︎' : '') + '</h3>' +
+    '<div class="val masked">●●●●●●●●</div>' +
+    (isRef ? '<div class="tpl">템플릿: <code></code></div>' : '') +
+    '<div class="actions">' +
+      '<button class="b-show">보기</button>' +
+      '<button class="b-copy">복사</button>' +
+      '<button class="b-edit">편집</button>' +
+    '</div>';
+
+  const valEl = $('.val', box);
+  if (isRef) $('.tpl code', box).textContent = rawTpl;
+
+  if (v.status === 'unset') {
+    valEl.classList.remove('masked');
+    valEl.innerHTML = '<span class="badge unset">미설정 — 값이 아직 없습니다</span>';
+    $('.b-show', box).disabled = true;
+    $('.b-copy', box).disabled = true;
+  } else if (v.status === 'error') {
+    valEl.classList.remove('masked');
+    valEl.innerHTML = '<span class="badge reduced">' + v.error + '</span>';
+    $('.b-show', box).disabled = true;
+    $('.b-copy', box).disabled = true;
+  }
+
+  // 마스킹은 어깨너머 노출을 줄이기 위한 것이지 값을 감추기 위한 것이 아니다.
+  // 토글 한 번으로 즉시 전체 값이 보인다 — 재인증을 요구하지 않는다 (스펙 §4.4).
+  let shown = false;
+  $('.b-show', box).onclick = () => {
+    shown = !shown;
+    valEl.classList.toggle('masked', !shown);
+    valEl.textContent = shown ? (v.value === '' ? '(빈 문자열)' : v.value) : '●●●●●●●●';
+    $('.b-show', box).textContent = shown ? '가리기' : '보기';
+  };
+
+  $('.b-copy', box).onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(v.value || '');
+      toast('복사했습니다' + ($('#autoclear').checked ? ' (30초 후 자동 비움)' : ''));
+      if ($('#autoclear').checked) {
+        setTimeout(() => { navigator.clipboard.writeText('').catch(() => {}); }, 30000);
+      }
+    } catch (e) { toast('클립보드 접근 실패: ' + e.message, true); }
+  };
+
+  $('.b-edit', box).onclick = () => {
+    const ta = document.createElement('textarea');
+    ta.rows = 3;
+    ta.style.width = '100%';
+    // 편집은 항상 템플릿(원본) 기준이다. 치환 결과를 편집하면 참조가 상수로 굳어버린다.
+    ta.value = rawTpl === null || rawTpl === undefined ? '' : rawTpl;
+    const save = document.createElement('button');
+    save.textContent = '값 저장';
+    const unset = document.createElement('button');
+    unset.textContent = '미설정으로';
+    const wrap = document.createElement('div');
+    wrap.style.marginTop = '8px';
+    wrap.append(ta, save, document.createTextNode(' '), unset);
+    box.appendChild(wrap);
+    $('.b-edit', box).disabled = true;
+
+    const put = async (value) => {
+      try {
+        await api('/value/' + encodeURIComponent(it.key), {
+          method: 'PUT',
+          body: JSON.stringify({ env, value, version: it.version }),
+        });
+        toast('저장했습니다');
+        await load();
+      } catch (e) { toast(e.message, true); }
+    };
+    save.onclick = () => put(ta.value);
+    unset.onclick = () => put(null);
+  };
+
+  return box;
+}
+
+$('#q').addEventListener('input', render);
+$('#reload').onclick = async () => { try { await api('/reload', { method: 'POST' }); await load(); toast('reload 완료'); } catch (e) { toast(e.message, true); } };
+$('#new').onclick = async () => {
+  const key = prompt('새 항목의 key (영문 대문자·숫자·밑줄)');
+  if (!key) return;
+  const vis = confirm('민감값입니까? (확인 = secret.yaml, 취소 = public.yaml)') ? 'secret' : 'public';
+  try {
+    await api('/items', { method: 'POST', body: JSON.stringify({ key, visibility: vis }) });
+    toast(key + ' 추가됨 — 값을 채우세요');
+    OPEN.add(key);
+    await load();
+  } catch (e) { toast(e.message, true); }
+};
+
+load().catch((e) => { $('#list').innerHTML = '<div class="empty">' + e.message + '</div>'; });
+</script>
+</body>
+</html>

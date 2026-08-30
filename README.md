@@ -114,6 +114,19 @@ npm test                  # 단위/통합 52개
 
 > 이 목록은 로드맵이지 약속이 아니다. **30일간 실제로 안 쓰인 툴은 삭제한다.**
 
+### 함께 사는 서비스
+
+툴(`dk run ...`)과 달리 상주 프로세스로 도는 것들.
+
+| 이름 | 역할 | 진입점 |
+|---|---|---|
+| **`config-provider`** | 서버 주소·비밀번호·API 키·도메인 용어를 한곳에서 관리하고 로컬에만 제공한다. 본인은 UI로 원본 평문을 즉시 보고, 에이전트에게는 화이트리스트를 통과한 값만 나간다. sops+age 암호화, UDS 데몬, MCP 서버 ([설치·사용](packages/config-provider/README.md) · [에이전트용](packages/config-provider/AGENTS.md)) | `dkc`, `dkc-mcp` |
+
+```bash
+dkc resolve 입고지시                                   # 자연어 → key
+dkc exec --with PGPASSWORD=DB_PASSWORD -- psql ...     # 값을 안 보고 명령만 실행
+```
+
 ---
 
 ## 사용 방법
@@ -361,7 +374,16 @@ devkit/
 │  │  ├─ registry.ts          manifest 스캔·검증
 │  │  └─ execute.ts           실행 파이프라인 ★ 모든 surface가 여기로 모인다
 │  ├─ cli/src/                dk 명령
-│  └─ mcp/src/stdio.ts        MCP 어댑터
+│  ├─ mcp/src/stdio.ts        MCP 어댑터
+│  └─ config-provider/        개인용 설정 저장소 서비스 (dkc)
+│     ├─ src/resolve.ts       참조 치환 + 실효 visibility ★ 가장 위험한 코드
+│     ├─ src/api.ts           모든 surface가 통과하는 단일 지점
+│     ├─ src/daemon.ts        UDS 서버 + stale 소켓 판별
+│     ├─ src/mcp.ts           MCP stdio 어댑터
+│     ├─ src/ui.ts            로컬 UI (127.0.0.1 전용)
+│     ├─ examples/            public/secret/policy 예시
+│     ├─ hooks/pre-commit     평문 커밋 차단
+│     └─ service/             launchd / systemd 유닛
 ├─ tools/<name>/              manifest.json + index.ts + fixtures/
 └─ scripts/selfcheck.sh       end-to-end 검증
 ```
@@ -375,6 +397,8 @@ devkit/
 | [`plan.md`](plan.md) | 전략, 문제 분석, 아키텍처, ADR, 마일스톤 |
 | [`AGENTS.md`](AGENTS.md) | **AI 에이전트용** — 툴 추가·수정 절차, 금지 사항, 에러 대응 |
 | [`TRYOUT.md`](TRYOUT.md) | 직접 써보는 순서 |
+| [`packages/config-provider/README.md`](packages/config-provider/README.md) | config-provider 설치·운영 (age 키 백업, 키 분실 대응 포함) |
+| [`packages/config-provider/AGENTS.md`](packages/config-provider/AGENTS.md) | **AI 에이전트용** — 설정값 조회 규칙과 이 서비스를 고치는 절차 |
 
 ---
 
@@ -384,6 +408,9 @@ devkit/
 
 **M1 완료** — `context-pack`, `repo-map`, `trace-flow`.
 이제 엔드포인트 하나를 지목하면 다운스트림 흐름·테이블·외부 시스템·리스크가 근거와 함께 나온다.
+
+**`config-provider` v0.1** — 개인 설정 저장소. sops+age 암호화, UDS 데몬, 로컬 UI,
+MCP 서버, pre-commit hook, launchd/systemd 유닛까지.
 
 다음은 M2 `impact-scan` (역방향 영향 반경) 과 `context-pack`에 근거 인용 붙이기.
 

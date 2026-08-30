@@ -1,0 +1,53 @@
+#!/bin/sh
+# secret.yaml 평문 커밋 차단 (스펙 §4.1).
+#
+# 이 hook이 마지막 방어선이다. 한 번 평문이 커밋되면 히스토리에서 지우는 것은
+# force-push와 재클론을 동반하고, 이미 push했다면 사실상 유출로 간주해야 한다.
+#
+# 검사 대상은 **스테이지된 내용**이지 워킹 트리가 아니다. `git add` 후에 파일을
+# 복호화해 편집하는 흔한 사고를 잡으려면 인덱스를 봐야 한다.
+
+set -eu
+
+fail=0
+note() { printf '%s\n' "$1" >&2; }
+
+for path in $(git diff --cached --name-only --diff-filter=ACM); do
+  case "$path" in
+    *secret.yaml|*secrets.yaml|*.secret.yaml) ;;
+    *) continue ;;
+  esac
+
+  staged=$(git show ":$path" 2>/dev/null || true)
+  [ -n "$staged" ] || continue
+
+  if ! printf '%s' "$staged" | grep -q '^sops:'; then
+    note "커밋 차단: $path 에 sops 메타데이터가 없습니다 (평문으로 보입니다)."
+    note "  고치기: sops -e -i \"$path\" && git add \"$path\""
+    fail=1
+    continue
+  fi
+
+  # sops 블록만 있고 값이 암호화되지 않은 경우 — encrypted_regex가 잘못됐을 때 나온다.
+  if ! printf '%s' "$staged" | grep -q 'ENC\[AES256_GCM'; then
+    note "커밋 차단: $path 에 암호화된 값(ENC[...])이 하나도 없습니다."
+    note "  .sops.yaml의 encrypted_regex가 '^value\$' 인지 확인하세요."
+    fail=1
+  fi
+done
+
+# age 개인키가 저장소에 딸려 들어가는 사고도 함께 막는다.
+for path in $(git diff --cached --name-only --diff-filter=ACM); do
+  if git show ":$path" 2>/dev/null | grep -q 'AGE-SECRET-KEY-1'; then
+    note "커밋 차단: $path 에 age 개인키가 들어 있습니다."
+    note "  개인키는 저장소에 절대 포함되지 않아야 합니다 (스펙 §4.1)."
+    fail=1
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  note ""
+  note "정말 의도한 커밋이라면 git commit --no-verify 로 우회할 수 있습니다."
+  note "다만 평문 커밋은 되돌릴 수 없다는 점을 기억하세요."
+  exit 1
+fi

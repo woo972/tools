@@ -8,15 +8,19 @@
     "node": ">=24.0.0"
   },
   "bin": {
-    "dk": "./bin/dk"
+    "dk": "./bin/dk",
+    "dkc": "./bin/dkc",
+    "dkc-mcp": "./bin/dkc-mcp"
   },
   "imports": {
     "#core/*": "./packages/core/src/*",
     "#registry/*": "./packages/registry/src/*",
-    "#lang/*": "./packages/lang/src/*"
+    "#lang/*": "./packages/lang/src/*",
+    "#config/*": "./packages/config-provider/src/*"
   },
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --test 'packages/*/test/*.test.ts' 'tools/*/test/*.test.ts'",
-    "dk": "./bin/dk"
+    "dk": "./bin/dk",
+    "dkc": "./bin/dkc"
   }
 }

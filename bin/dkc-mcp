@@ -1,0 +1,8 @@
+#!/bin/sh
+# MCP stdio 어댑터 진입점.
+#
+# Claude Code / Codex가 세션마다 이 스크립트를 직접 실행한다. 두 클라이언트 모두
+# 터미널과 다른 셸 환경에서 하위 프로세스를 띄우므로 PATH에 node가 없을 수 있다 —
+# 등록할 때는 이 파일의 **절대 경로**를 쓰고, 필요하면 아래 node를 절대 경로로 바꿔라.
+exec node --disable-warning=ExperimentalWarning \
+  "$(cd "$(dirname "$0")/.." && pwd)/packages/config-provider/src/mcp.ts" "$@"

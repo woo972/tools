@@ -22,6 +22,10 @@
 - 의존성: **없다.** `npm install`이 필요 없다. SQLite는 `node:sqlite`, 테스트는 `node:test`.
 - 따라서 파일을 고치면 바로 반영된다. 재빌드·재설치를 시도하지 마라.
 
+> 설정값(서버 주소·비밀번호·API 키·카프카 토픽명)을 찾고 있다면 `dk`가 아니라 `dkc`다.
+> 조회 규칙과 고치는 절차는 [`packages/config-provider/AGENTS.md`](packages/config-provider/AGENTS.md)에 있다.
+> 요약: `dkc resolve <자연어>` → key 확인 → `dkc get <KEY>` 또는 (선호) `dkc exec --with N=KEY -- <명령>`.
+
 ---
 
 ## 1. 툴이 실패했을 때 — 6단계
@@ -183,7 +187,8 @@ devkit/
 │  │  ├─ registry.ts          manifest 스캔·검증
 │  │  └─ execute.ts           실행 파이프라인 ★ 모든 surface가 여기로 모인다
 │  ├─ cli/src/                dk 명령
-│  └─ mcp/src/stdio.ts        MCP 어댑터 (얇게 유지할 것)
+│  ├─ mcp/src/stdio.ts        MCP 어댑터 (얇게 유지할 것)
+│  └─ config-provider/        개인 설정 저장소 서비스 — 별도 AGENTS.md 있음
 └─ tools/<name>/              manifest.json + index.ts + fixtures/
 ```
 
@@ -222,6 +227,7 @@ devkit/
 | `~/.devkit/config.toml`에 시크릿 평문 저장 | `keychain://service/account` 참조만 쓴다 |
 | SQLite 파일 직접 수정 | JSONL이 진실 원천이다. `~/.devkit/devkit.db`는 지워도 되는 파생물 |
 | 사내 시스템(Jira/DB/APM) 접근 툴 추가 | **보안 정책 확인 전까지 금지.** plan.md §15-1 참조 |
+| config-provider의 정책·민감도 판정을 우회 | `POLICY_DENIED`는 소유자의 의도다. 사람에게 요청해라 |
 
 ---
 

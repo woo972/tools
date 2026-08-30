@@ -1,0 +1,28 @@
+# systemd (user) 서비스 — config-provider.socket과 짝이다.
+#
+# ExecStart의 경로는 devkit 체크아웃 위치에 맞게 고쳐야 한다.
+
+[Unit]
+Description=Config Provider 데몬
+Requires=config-provider.socket
+After=config-provider.socket
+
+[Service]
+Type=simple
+ExecStart=%h/IdeaProjects/devkit/bin/dkc daemon run
+Environment=SOPS_AGE_KEY_FILE=%h/.config/sops/age/keys.txt
+Environment=DKC_SOCKET=%t/config-provider/daemon.sock
+Restart=on-failure
+RestartSec=2
+
+# 복호화된 값이 프로세스 메모리에 상주한다(스펙 §6). 최소한 코어 덤프로 디스크에
+# 새는 경로는 막는다.
+LimitCORE=0
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/config-provider
+
+[Install]
+WantedBy=default.target

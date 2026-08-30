@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd (user) 서비스 정의 — macOS.
+
+  설치:
+    sed -e "s#__DEVKIT__#$(cd /path/to/devkit && pwd)#g" \
+        -e "s#__HOME__#$HOME#g" \
+        packages/config-provider/service/dev.devkit.config-provider.plist \
+        > ~/Library/LaunchAgents/dev.devkit.config-provider.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.devkit.config-provider.plist
+    launchctl kickstart -k gui/$(id -u)/dev.devkit.config-provider
+
+  소켓 활성화(Sockets 키)를 쓰지 않는 이유: launchd의 소켓 전달은 launch_activate_socket(3)
+  호출이 필요한데 Node에서 이걸 쓸 방법이 없다. 대신 KeepAlive로 비정상 종료 시 재기동을
+  맡기고, stale 소켓 처리는 데몬이 connect 프로브로 직접 한다(daemon.ts 참조).
+
+  DKC_STORE를 지정하지 않으면 ~/.config/config-provider를 쓴다.
+  DKC_SOCKET을 지정하지 않으면 $TMPDIR/config-provider/daemon.sock을 쓴다 —
+  launchd가 주는 TMPDIR도 사용자 전용이므로 그대로 두어도 된다.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.devkit.config-provider</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__DEVKIT__/bin/dkc</string>
+    <string>daemon</string>
+    <string>run</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- PATH: sops/age가 여기 있어야 한다. launchd는 로그인 셸의 PATH를 물려주지 않는다. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>SOPS_AGE_KEY_FILE</key>
+    <string>__HOME__/.config/sops/age/keys.txt</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/.config/config-provider/daemon.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.config/config-provider/daemon.err.log</string>
+
+  <!-- 소켓·설정 파일을 0600/0700으로 만들기 위해 umask를 조인다. -->
+  <key>Umask</key>
+  <integer>63</integer>
+</dict>
+</plist>

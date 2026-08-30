@@ -1,0 +1,7 @@
+#!/bin/sh
+# dkc 런처 — 개인용 Config Provider CLI.
+#
+# --disable-warning: Node의 TypeScript type-stripping ExperimentalWarning을 끈다.
+#   stderr에 섞이면 `PW=$(dkc get ...)` 같은 쉘 사용과 에이전트의 출력 파싱에 잡음이 된다.
+exec node --disable-warning=ExperimentalWarning \
+  "$(cd "$(dirname "$0")/.." && pwd)/packages/config-provider/src/cli.ts" "$@"

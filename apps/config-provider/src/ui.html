@@ -80,6 +80,9 @@
   .envchip.base { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
   .topactions { display: flex; align-items: center; gap: 6px; flex: none; }
   @media (max-width: 1400px) { .card.optional { display: none; } }
+  /* 더 좁아지면 숫자 카드는 접는다. 항목 수는 좌측 하단(.treefoot)에도 있고,
+     남겨야 하는 건 색으로 상태를 말하는 카드(tone-*)뿐이다. */
+  @media (max-width: 1000px) { .card:not([class*="tone-"]) { display: none; } }
   .alertline {
     position: fixed; top: var(--topbar); left: 0; right: 0; z-index: 39; padding: 3px 12px;
     background: var(--danger-bg); border-bottom: 1px solid var(--danger-line); color: var(--danger);
@@ -120,10 +123,23 @@
   .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: currentColor; }
 
   /* ── 2패널 골격 ────────────────────────────────────────────── */
-  .shell { position: fixed; inset: var(--topbar) 0 0 0; display: grid; grid-template-columns: var(--left) minmax(0, 1fr); }
+  /*
+    행 크기를 minmax(0, 1fr)로 못 박는다. 기본값(auto)으로 두면 shell의 높이가
+    inset으로 정해져 있는데도 행이 콘텐츠만큼 늘어나, 좌/우 패널이 화면 밖으로
+    밀려나고 그 안의 overflow-y:auto는 "넘칠 게 없다"고 판단해 스크롤을 만들지 않는다.
+    관리 키가 늘어날수록 아래쪽 키에 아예 닿을 수 없게 되는 원인이었다.
+  */
+  .shell {
+    position: fixed; inset: var(--topbar) 0 0 0; display: grid;
+    grid-template-columns: var(--left) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  }
   .shell.warned { top: calc(var(--topbar) + 22px); }
-  .left { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-width: 0; }
-  .right { overflow-y: auto; background: var(--bg); min-width: 0; }
+  /* 두 패널 모두 min-height:0 — 안쪽 스크롤 컨테이너가 부모를 밀어내지 못하게 한다. */
+  .left { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .right { overflow-y: auto; overscroll-behavior: contain; background: var(--bg); min-width: 0; min-height: 0; }
+  /* 창이 좁아지면 고정 폭 좌측 패널이 우측을 화면 밖으로 밀어낸다. 같은 사고의 가로 버전. */
+  @media (max-width: 1000px) { :root { --left: 320px; } }
+  @media (max-width: 760px) { .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(120px, 40%) minmax(0, 1fr); } .left { border-right: 0; border-bottom: 1px solid var(--line); } }
 
   /* ── 좌측: 검색 + 컬렉션 트리 ──────────────────────────────── */
   .search { padding: 8px; border-bottom: 1px solid var(--line); display: flex; gap: 6px; align-items: center; }
@@ -135,7 +151,7 @@
   }
   #q:focus { outline: none; background: var(--panel); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   #q-clear { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); }
-  .tree { flex: 1; overflow-y: auto; padding-bottom: 20px; }
+  .tree { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 20px; }
   .treefoot {
     border-top: 1px solid var(--line); padding: 6px 10px; background: var(--panel-2);
     font: 400 11px/1.5 var(--mono); color: var(--faint); display: flex; gap: 8px; align-items: center;

@@ -40,3 +40,27 @@ test('UI는 loopback이 아닌 Host 요청을 계속 거부한다', async () => 
     await ui.close();
   }
 });
+
+// 스크롤 계약. shell은 높이가 inset으로 고정된 그리드라서, 행 크기를 명시하지 않으면
+// 행이 콘텐츠만큼 늘어나 좌/우 패널이 화면 밖으로 밀려나고 안쪽 overflow-y:auto가
+// 죽는다 — 관리 키가 늘어날수록 아래쪽 키에 닿을 수 없게 된다. 실제로 겪은 회귀다.
+test('UI 골격은 안쪽 패널이 스크롤되도록 행 높이를 고정한다', async () => {
+  const ui = await start({ port: 0 });
+  try {
+    const { body } = await get(Number(new URL(ui.url).port), '127.0.0.1');
+    const css = body.slice(0, body.indexOf('</style>'));
+
+    const rule = (selector: string): string => {
+      const at = css.indexOf(`\n  ${selector} {`);
+      assert.notEqual(at, -1, `${selector} 규칙을 찾지 못했습니다`);
+      return css.slice(at, css.indexOf('}', at));
+    };
+
+    assert.match(rule('.shell'), /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
+    for (const selector of ['.left', '.right', '.tree']) {
+      assert.match(rule(selector), /min-height:\s*0/, `${selector}에 min-height:0이 없습니다`);
+    }
+  } finally {
+    await ui.close();
+  }
+});

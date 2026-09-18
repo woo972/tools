@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  config-provider UI용 macOS LaunchAgent.
+
+  설정 데몬과 UI는 수명이 다르므로 별도 서비스로 둔다. UI가 데몬보다 먼저 시작되어
+  종료되더라도 KeepAlive가 다시 기동하며, 실제 데이터는 데몬의 사용자 전용 UDS를 통해서만
+  읽는다. HTTP 서버는 127.0.0.1:7777에만 바인딩한다.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.devkit.config-provider-ui</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__DEVKIT__/bin/dkc</string>
+    <string>ui</string>
+    <string>--port</string>
+    <string>7777</string>
+    <string>--no-open</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/.config/config-provider/ui.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.config/config-provider/ui.err.log</string>
+
+  <key>Umask</key>
+  <integer>63</integer>
+</dict>
+</plist>

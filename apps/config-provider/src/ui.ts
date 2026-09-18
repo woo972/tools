@@ -18,24 +18,26 @@ import { call } from './client.ts';
 import { uiPort } from './paths.ts';
 
 const HTML = () => readFileSync(join(import.meta.dirname, 'ui.html'), 'utf8');
+const BIND_HOST = '127.0.0.1';
+const UI_HOSTNAME = 'config-provider.localhost';
 
-export type UiHandle = { close: () => Promise<void>; url: string };
+export type UiHandle = { close: () => Promise<void>; url: string; address: string };
 
-export async function start(opts: { port?: number; host?: string } = {}): Promise<UiHandle> {
+export async function start(opts: { port?: number } = {}): Promise<UiHandle> {
   const port = opts.port ?? uiPort();
-  // 기본값을 상수로 박는다. 환경변수로 host를 바꿀 수 있게 두지 않는다 —
+  // 상수로 박는다. 환경변수나 호출 인자로 host를 바꿀 수 있게 두지 않는다 —
   // 실수로 외부에 노출되는 경로를 아예 만들지 않기 위해서다.
-  const host = opts.host ?? '127.0.0.1';
 
   const server = createServer((req, res) => void handle(req, res));
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, host, resolve);
+    server.listen(port, BIND_HOST, resolve);
   });
 
-  const url = `http://${host}:${(server.address() as { port: number }).port}`;
+  const url = `http://${UI_HOSTNAME}:${(server.address() as { port: number }).port}`;
   return {
     url,
+    address: (server.address() as { address: string }).address,
     close: () => new Promise<void>((r) => server.close(() => r())),
   };
 }
@@ -46,7 +48,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   // 브라우저가 아닌 곳에서 온 요청은 거절한다. loopback 바인딩 위의 얇은 이중 방어로,
   // DNS 리바인딩으로 다른 호스트명을 태워 보내는 경로를 막는다.
   const host = (req.headers.host ?? '').split(':')[0];
-  if (host !== '127.0.0.1' && host !== 'localhost' && host !== '[::1]') {
+  if (host !== '127.0.0.1' && host !== 'localhost' && host !== '[::1]' && host !== UI_HOSTNAME) {
     res.writeHead(403).end('loopback 전용입니다');
     return;
   }

@@ -69,7 +69,7 @@ function usage(): void {
 운영
   dkc init                          저장소 초기화 (.sops.yaml, config/, policy.yaml)
   dkc daemon start|stop|status|run  데몬 제어 (run은 포그라운드, launchd/systemd용)
-  dkc ui                            로컬 UI (127.0.0.1 전용)
+  dkc ui                            로컬 UI (http://config-provider.localhost:7777)
   dkc reload                        캐시 재적재
   dkc status                        데몬 상태
   dkc doctor                        환경 진단
@@ -276,7 +276,7 @@ async function cmdUi(f: Flags): Promise<number> {
 
   const { start } = await import('./ui.ts');
   const h = await start({ port: f.port ? Number(f.port) : uiPort() });
-  process.stdout.write(`UI: ${h.url}  (127.0.0.1 전용 · Ctrl+C로 종료)\n`);
+  process.stdout.write(`UI: ${h.url}  (loopback 전용 · Ctrl+C로 종료)\n`);
   if (!f.noOpen && process.platform === 'darwin') spawnSync('open', [h.url]);
   await new Promise(() => {});
   return 0;

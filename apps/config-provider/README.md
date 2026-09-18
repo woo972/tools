@@ -67,7 +67,7 @@ cd /path/to/devkit
 
 ### UI로 (권장)
 
-`dkc ui` → `새 항목` → key·저장 위치(public/secret)·컬렉션·종류·별칭·설명을 고르고 env별
+`dkc ui` → `http://config-provider.localhost:7777` → `새 항목` → key·저장 위치(public/secret)·컬렉션·종류·별칭·설명을 고르고 env별
 초기 값까지 한 번에 입력. 값은 오른쪽 표에서 클릭해 그 자리에서 다시 편집한다.
 
 ### 파일로
@@ -191,7 +191,7 @@ dkc alias rm  INBOUND_INSTRUCTION_TOPIC "입고 이벤트"
 ## 4. UI
 
 ```bash
-dkc ui          # http://127.0.0.1:7777
+dkc ui          # http://config-provider.localhost:7777
 ```
 
 화면은 세 덩어리다: 얇은 상단 바 · 좌측 컬렉션 탐색기 · 우측 상세.
@@ -238,7 +238,9 @@ collections:
 - 항목 파일(public/secret)을 건드리지 않는다. 정리 정보가 설정 스키마에 섞이지 않는다
 - 컬렉션 편집은 소유자 전용이다. 에이전트에게는 열리지 않는다
 
-**127.0.0.1에만 바인딩된다.** 외부 인터페이스로 열 수 있는 옵션을 일부러 두지 않았다 —
+**127.0.0.1에만 바인딩된다.** 브라우저에서는 고정 주소 `http://config-provider.localhost:7777`로
+접속한다. `.localhost`는 loopback 전용 이름이므로 별도 DNS나 `/etc/hosts` 설정이 필요 없다.
+외부 인터페이스로 열 수 있는 옵션을 일부러 두지 않았다 —
 노출되는 순간 이 설계의 전제(로컬 단일 머신)가 무너진다.
 
 ---
@@ -277,10 +279,18 @@ npm install && npm run dev     # 한 번 실행하면 Raycast에 등록된다
 sed -e "s#__DEVKIT__#$PWD#g" -e "s#__HOME__#$HOME#g" \
   apps/config-provider/service/dev.devkit.config-provider.plist \
   > ~/Library/LaunchAgents/dev.devkit.config-provider.plist
+sed -e "s#__DEVKIT__#$PWD#g" -e "s#__HOME__#$HOME#g" \
+  apps/config-provider/service/dev.devkit.config-provider-ui.plist \
+  > ~/Library/LaunchAgents/dev.devkit.config-provider-ui.plist
 
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.devkit.config-provider.plist
-launchctl print gui/$(id -u)/dev.devkit.config-provider | head -20
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.devkit.config-provider-ui.plist
+launchctl print gui/$(id -u)/dev.devkit.config-provider
+launchctl print gui/$(id -u)/dev.devkit.config-provider-ui
 ```
+
+설정 데몬과 UI가 각각 로그인할 때 시작된다. UI는 `127.0.0.1:7777`에서만 수신하며,
+브라우저에서는 항상 `http://config-provider.localhost:7777`로 접근한다.
 
 ### Linux (systemd user, 소켓 활성화)
 

@@ -16,3 +16,4 @@ node_modules/
 !apps/config-provider/raycast/assets/icon.png
 .gstack/
 .worktrees/
+graphify-out/
